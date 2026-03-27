@@ -87,6 +87,6 @@ Here are a few hints to help, but Visual Studio Code is widely used software so 
 online for help when you get stuck will be useful:
 * Select "Auto Save" in Visual Studio Code to ensure that it saves your files as you edit.
 * In our examples we use port `1234` for the debugger, but you can change this port if needed, just make sure that you update your `launch.json` file to match.
-* To get started with a project, you will typically clone our [ECS 150 repo](https://ecs150-projects.io/git/ecs150-projects.git) using Visual Studio Code "Clone git repository" option and Visual Studio Code will set up a Dev Container for you based on the confiugrations we included in that repo.
+* To get started with a project, you will typically clone this repo using Visual Studio Code "Clone git repository" option and Visual Studio Code will set up a Dev Container for you based on the confiugrations we included in that repo.
 * If we push an update in the middle of a project, you can use `git pull` in your host terminal to fetch the latest updates. There is probably a way to do this in Visual Studio Code as well.
 * If you're using a Mac with Apple Silicon, make sure to enable both the "Apple Virtualization Framework" and "Use Rosetta for x86_64/amd64 emulation on Apple Silicon" options in Docker Desktop
