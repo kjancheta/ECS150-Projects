@@ -40,7 +40,6 @@ int main(int argc, char *argv[]) {
                 write(STDOUT_FILENO, &currentChar, 1); // print the char
             }
         }
-
         close(fd); 
     }   
 

@@ -53,12 +53,9 @@ int main(int argc, char *argv[]) {
                     currentChar = c; // start counting new char
                     count = 1; // reset count
                 }
-
             }
         }
-
         close(fd);
-        
     }
 
     // the for loop prints when a different character is found

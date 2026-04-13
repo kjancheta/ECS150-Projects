@@ -61,7 +61,6 @@ int main(int argc, char *argv[]) {
         if (argc > 2) {
             close(fd); 
         }
-        
     }
 
     return 0;

@@ -31,7 +31,6 @@ int main(int argc, char *argv[]) {
         while ((ret = read(fd, buffer, 4096)) > 0) { // while not end of file
             write(STDOUT_FILENO, buffer, ret); // write ret bytes from buffer 
         }
-
         close(fd);
     }
 
