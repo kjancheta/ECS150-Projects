@@ -20,15 +20,14 @@ int main(int argc, char *argv[]) {
         return 1; // just exit and return 1
     }
 
-    const char *search = argv[1]; // search term argument (ie foo)
-
     if (argc == 2) { // search term specified but no file
         fd = STDIN_FILENO; // read from standard input instead
     }
 
-    char buffer[1048576]; // buffers data until newline character, one of the tests was really big
+    char *search = argv[1]; // search term argument (ie foo)
+    char buffer[1048576]; // buffers data until newline character, one of the tests was a really long line
     int lineIdx = 0; // index for buffer
-    char bytesChunk[4096]; // reads large chunks and stores
+    char bytesChunk[4096]; // reads large chunks and stores, was too long reading 1 at a time so this helped
     int ret;
 
     for (int i = 2; i < argc || (argc == 2 && i == 2); i++) { // start at 2 for argv[2] file name
