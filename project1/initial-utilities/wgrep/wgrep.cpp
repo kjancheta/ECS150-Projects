@@ -14,7 +14,6 @@ using namespace std;
 
 int main(int argc, char *argv[]) {
     int fd; // file descriptor
-
     if (argc == 1) { // no arguments specified on command line
         const char msg[] = "wgrep: searchterm [file ...]\n"; // error message from README
         write(STDOUT_FILENO, msg, sizeof(msg) - 1); // print with write
@@ -27,7 +26,7 @@ int main(int argc, char *argv[]) {
         fd = STDIN_FILENO; // read from standard input instead
     }
 
-    char buffer[1000000]; // buffers data until newline character
+    char buffer[1048576]; // buffers data until newline character, one of the tests was really big
     int lineIdx = 0; // index for buffer
     char bytesChunk[4096]; // reads large chunks and stores
     int ret;

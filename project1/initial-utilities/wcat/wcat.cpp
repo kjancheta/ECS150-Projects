@@ -9,6 +9,7 @@
 using namespace std;
 
 // wcat reads main.cpp and prints its contents
+// from readme
 
 int main(int argc, char *argv[]) {
     int fd; // file descriptor
@@ -24,7 +25,7 @@ int main(int argc, char *argv[]) {
                                       // pass O_RDONLY to read the file
         if (fd < 0) { // negative number returned, open() failed
             const char msg[] = "wcat: cannot open file\n"; // error message from README
-            write(STDOUT_FILENO, msg, sizeof(msg) - 1); // print with write
+            write(STDOUT_FILENO, msg, sizeof(msg) - 1); // print with write, ignore ending \0
             return 1; // exit with status code 1
         }
 

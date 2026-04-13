@@ -18,7 +18,6 @@ using namespace std;
 
 int main(int argc, char *argv[]) {
     int fd; // file descriptor
-
     if (argc == 1) { // no arguments specified on command line
         const char msg[] = "wzip: file1 [file2 ...]\n"; // error message from README
         write(STDOUT_FILENO, msg, sizeof(msg) - 1); // print with write
