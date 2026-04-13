@@ -12,7 +12,7 @@ using namespace std;
 // from readme
 
 int main(int argc, char *argv[]) {
-    int fd; // file descriptor
+    int fd; 
     if (argc == 1) { // no files specified on command line
         return 0; // just exit and return 0
     }
@@ -21,8 +21,7 @@ int main(int argc, char *argv[]) {
     int ret;
 
     for (int i = 1; i < argc; i++) {
-        fd = open(argv[i], O_RDONLY); // open() tries opening file and returns a file descriptor,
-                                      // pass O_RDONLY to read the file
+        fd = open(argv[i], O_RDONLY);
         if (fd < 0) { // negative number returned, open() failed
             const char msg[] = "wcat: cannot open file\n"; // error message from README
             write(STDOUT_FILENO, msg, sizeof(msg) - 1); // print with write, ignore ending \0
@@ -33,7 +32,7 @@ int main(int argc, char *argv[]) {
             write(STDOUT_FILENO, buffer, ret); // write ret bytes from buffer 
         }
 
-        close(fd); // done reading and writing, close file
+        close(fd);
     }
 
     return 0;

@@ -17,7 +17,7 @@ using namespace std;
 // compressed file has some number of 5-byte entries
 
 int main(int argc, char *argv[]) {
-    int fd; // file descriptor
+    int fd; 
     if (argc == 1) { // no arguments specified on command line
         const char msg[] = "wzip: file1 [file2 ...]\n"; // error message from README
         write(STDOUT_FILENO, msg, sizeof(msg) - 1); // print with write
@@ -29,9 +29,8 @@ int main(int argc, char *argv[]) {
     char currentChar = 0; // holds the current char being counted
     int ret;
 
-    for (int i = 1; i < argc; i++) { // 
-        fd = open(argv[i], O_RDONLY); // open() tries opening file and returns a file descriptor,
-                                    // pass O_RDONLY to read the file
+    for (int i = 1; i < argc; i++) { 
+        fd = open(argv[i], O_RDONLY); 
         if (fd < 0) { // negative number returned, open() failed
             const char msg[] = "wzip: cannot open file\n"; // error message from README
             write(STDOUT_FILENO, msg, sizeof(msg) - 1); // print with write
@@ -58,10 +57,12 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        close(fd); // done reading and writing, close file 
+        close(fd);
         
     }
 
+    // the for loop prints when a different character is found
+    // still need to print the last variables
     if (count > 0) {
         write(STDOUT_FILENO, &count, 4);
         write(STDOUT_FILENO, &currentChar, 1);

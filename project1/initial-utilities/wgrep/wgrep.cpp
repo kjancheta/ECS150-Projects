@@ -13,7 +13,7 @@ using namespace std;
 // if a line has the word (case sensitive), it is printed out, if not it is skipped
 
 int main(int argc, char *argv[]) {
-    int fd; // file descriptor
+    int fd;
     if (argc == 1) { // no arguments specified on command line
         const char msg[] = "wgrep: searchterm [file ...]\n"; // error message from README
         write(STDOUT_FILENO, msg, sizeof(msg) - 1); // print with write
@@ -33,11 +33,10 @@ int main(int argc, char *argv[]) {
     for (int i = 2; i < argc || (argc == 2 && i == 2); i++) { // start at 2 for argv[2] file name
                                                               // argc = 2 case is for no file
         if (argc > 2) { // there are files on the command line
-            fd = open(argv[i], O_RDONLY); // open() tries opening file and returns a file descriptor,
-                                          // pass O_RDONLY to read the file
+            fd = open(argv[i], O_RDONLY);
             if (fd < 0) { // negative number returned, open() failed
                 const char msg[] = "wgrep: cannot open file\n"; // error message from README
-                write(STDOUT_FILENO, msg, sizeof(msg) - 1); // print with write
+                write(STDOUT_FILENO, msg, sizeof(msg) - 1); 
                 return 1; // exit with status code 1
             }
         }
@@ -48,7 +47,7 @@ int main(int argc, char *argv[]) {
             for (int j = 0; j < ret; j++) { // iterate through each byte in chunk
                 char c = bytesChunk[j]; // store 1 character from chunk
                 buffer[lineIdx] = c; // add character to buffer
-                lineIdx++; // increment index
+                lineIdx++;
                 if (c == '\n') { // encountered newline character, end of line
                     buffer[lineIdx] = '\0';
                     if (strstr(buffer, search)) { // search for the term in line
@@ -60,7 +59,7 @@ int main(int argc, char *argv[]) {
         }
 
         if (argc > 2) {
-            close(fd); // done reading and writing, close file 
+            close(fd); 
         }
         
     }
