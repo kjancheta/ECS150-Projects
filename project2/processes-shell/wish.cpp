@@ -105,12 +105,23 @@ vector<string> parseCommand (string line) {
     return args;
 }
 
+string findExec(string line, vector<string> path) {
+    for (int i = 0; i < path.size(); i++) {
+        string searchPath = path[i] + "/" + line; // build search path
+        if (access(searchPath.c_str(), X_OK) == 0) { // 0 means its execute permission is enabled
+            return searchPath; // found
+        }
+    }
+    return ""; // not found
+}
+
 int main(int argc, char *argv[]) {
     string line;
+    vector<string> shellPath = {"/bin"}; // initial shell path, only one directory
 
     while (true) {
-        cout << "wish> ";
-        if (!getline(cin, line)) {
+        cout << "wish> "; // prompt
+        if (!getline(cin, line)) { // REMOVE?
             exit(0);
         }
 
