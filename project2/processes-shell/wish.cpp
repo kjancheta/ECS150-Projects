@@ -143,6 +143,22 @@ int main(int argc, char *argv[]) {
         }
 
         // cd built in
+        if (args[0] ==  "cd") {
+            if (args.size() != 2) { // cd must take 1 argument, 0 or more than 1 is error
+                                    // size = 2, 1 for cd then 2 for directory
+                char error_message[30] = "An error has occurred\n";
+                write(STDERR_FILENO, error_message, strlen(error_message));
+            }
+            else {
+                int chdirResult = chdir(args[1].c_str());
+                if (chdirResult != 0) { // on error, -1 is returned (0 on success)
+                    char error_message[30] = "An error has occurred\n";
+                    write(STDERR_FILENO, error_message, strlen(error_message));
+                }
+            }
+            continue;
+        }
+
 
         // path built in
 
@@ -157,21 +173,21 @@ int main(int argc, char *argv[]) {
         pid_t pid = fork();
         if (pid == 0) {
             // child process
-            char *execArgs[args.size() + 1];
+            char *execArgs[args.size() + 1]; // execv uses char* array
             for (int i = 0; i < args.size(); i++) {
-                execArgs[i] = (char *)args[i].c_str();
+                execArgs[i] = (char *)args[i].c_str(); // convert string to char*
             }
-            execArgs[args.size()] = NULL; // array of pointers must be terminated by null
+            execArgs[args.size()] = NULL; // for execv, array must be terminated by null
 
-            execv(executable.c_str() ,execArgs);
+            execv(executable.c_str() ,execArgs); // replace child process w command
             // execv only returns when there is an error
             char error_message[30] = "An error has occurred\n";
             write(STDERR_FILENO, error_message, strlen(error_message));
-            exit(1);
+            exit(1); // end child process
         }
         else if (pid > 0) {
             // parent process
-            wait(NULL);
+            wait(NULL); // wait for child
         }
         else {
             // fork failed
