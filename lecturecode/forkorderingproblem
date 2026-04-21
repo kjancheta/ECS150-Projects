@@ -1,0 +1,11 @@
+#include <stdio.h>
+#include <unistd.h>
+#include <sys/wait.h>>
+
+
+
+
+// goal:
+// child prints hello
+// parent prints goodbye
+// child always prints first

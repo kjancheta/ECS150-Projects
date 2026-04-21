@@ -10,6 +10,12 @@
 
 using namespace std;
 
+// we're going to ignore error checking to keep this
+// example simple, but make sure that you do full
+// error checking in any code that you write for
+// projects in this class and in general if you want
+// to actually use the software.
+
 //lecture 4-13-26
 // crazy cat takes list of all files on command line
 
