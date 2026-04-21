@@ -77,10 +77,10 @@ vector<string> parseCommand (string line) {
     for (int i = 0; i <= line.size(); i++) {
         char c;
         if (i == line.size()) { // to add final arg
-            c = ' ';
+            c = ' '; // treat c as whitespace
         }
         else {
-            c = line[i];
+            c = line[i]; // c is current char
         }
 
         if (c == ' ' || c == '\t') { // spaces and tabs
@@ -114,11 +114,23 @@ int main(int argc, char *argv[]) {
             exit(0);
         }
 
-        //cout << "line: " << line << endl;
-        vector<string> args = parseCommand(line); // for test
-        for (int i = 0; i < args.size(); i++) {
-            cout << "token[" << i <<"] = " << args[i] << endl;
+        vector<string> args = parseCommand(line); 
+        
+        if (args.empty()) {
+            continue; // prompt again
         }
+
+        // exit built in
+        if (args[0] == "exit") { 
+            if (args.size() > 1) { // args passed to 'exit', error!
+                char error_message[30] = "An error has occurred\n";
+                write(STDERR_FILENO, error_message, strlen(error_message));
+            }
+            else {
+                exit(0);
+            }
+        }
+
     }
 
     return 0;
