@@ -117,7 +117,7 @@ string findExec(string line, vector<string> path) {
 
 int main(int argc, char *argv[]) {
     string line;
-    vector<string> shellPath = {"/bin"}; // initial shell path, only one directory
+    vector<string> shellPath = {"/bin"}; // initial shell path, only one directory initially
 
     while (true) {
         cout << "wish> "; // prompt
@@ -159,8 +159,14 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
-
         // path built in
+        if (args[0] == "path") {
+            shellPath.clear(); // clear shellPath to overwrite it
+            for (int i = 0; i < args.size(); i++) {
+                shellPath.push_back(args[i]); // add each arg as the new path
+            }
+            continue;
+        }
 
         string executable = findExec(args[0], shellPath);
         if (executable.empty()) {
