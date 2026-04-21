@@ -142,6 +142,43 @@ int main(int argc, char *argv[]) {
             }
         }
 
+        // cd built in
+
+        // path built in
+
+        string executable = findExec(args[0], shellPath);
+        if (executable.empty()) {
+            char error_message[30] = "An error has occurred\n";
+            write(STDERR_FILENO, error_message, strlen(error_message));
+            continue; // prompt again
+        }
+
+        // execute command
+        pid_t pid = fork();
+        if (pid == 0) {
+            // child process
+            char *execArgs[args.size() + 1];
+            for (int i = 0; i < args.size(); i++) {
+                execArgs[i] = (char *)args[i].c_str();
+            }
+            execArgs[args.size()] = NULL; // array of pointers must be terminated by null
+
+            execv(executable.c_str() ,execArgs);
+            // execv only returns when there is an error
+            char error_message[30] = "An error has occurred\n";
+            write(STDERR_FILENO, error_message, strlen(error_message));
+            exit(1);
+        }
+        else if (pid > 0) {
+            // parent process
+            wait(NULL);
+        }
+        else {
+            // fork failed
+            char error_message[30] = "An error has occurred\n";
+            write(STDERR_FILENO, error_message, strlen(error_message));
+        }
+
     }
 
     return 0;
