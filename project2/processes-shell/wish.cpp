@@ -165,10 +165,29 @@ int main(int argc, char *argv[]) {
     string line;
     vector<string> shellPath = {"/bin"}; // initial shell path, only one directory initially
 
+    if (argc > 2) { // error, invoked with multiple files
+        char error_message[30] = "An error has occurred\n";
+        write(STDERR_FILENO, error_message, strlen(error_message));
+        exit(1);
+    }
+
+    if (argc == 2) { // batch mode
+        int fd = open(argv[1], O_RDONLY);
+        if (fd < 0) { // bad batch file
+            char error_message[30] = "An error has occurred\n";
+            write(STDERR_FILENO, error_message, strlen(error_message));
+            exit(1);
+        }
+        dup2(fd, STDIN_FILENO);
+        close(fd);
+    }
+
     while (true) {
-        cout << "wish> "; // prompt
-        if (!getline(cin, line)) { // REMOVE?
-            exit(0);
+        if (argc == 1) {
+            cout << "wish> "; // prompt only in interactive mode, not batch
+        }
+        if (!getline(cin, line)) { 
+            exit(0); // EOF
         }
 
         // parse the command line
@@ -248,7 +267,7 @@ int main(int argc, char *argv[]) {
                     if (fd < 0) { // open failed
                         char error_message[30] = "An error has occurred\n";
                         write(STDERR_FILENO, error_message, strlen(error_message));
-                        exit(1);
+                        exit(1); // end child process
                     }
                     dup2(fd, STDOUT_FILENO);
                     dup2(fd, STDERR_FILENO);
