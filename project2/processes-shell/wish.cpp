@@ -141,6 +141,26 @@ string checkRedirect(vector<string> &args) { // & to change it in main
     return "";
 }
 
+vector<vector<string>> checkParallel(vector<string> args) { // parallel commands, need multiple vectors
+    vector<vector<string>> commands; // stores commands to be run in parallel
+    vector<string> currentCmd; // command being currently built
+    for (int i = 0; i < args.size(); i++) {
+        if (args[i] == "&") {
+            if (!currentCmd.empty()) {
+                commands.push_back(currentCmd); // store command to list of commands
+                currentCmd.clear(); // build next command
+            }
+        }
+        else {
+            currentCmd.push_back(args[i]); // build current command
+        }
+    }
+    if (!currentCmd.empty()) { // store final command
+        commands.push_back(currentCmd);
+    }
+    return commands;
+}
+
 int main(int argc, char *argv[]) {
     string line;
     vector<string> shellPath = {"/bin"}; // initial shell path, only one directory initially
@@ -189,67 +209,77 @@ int main(int argc, char *argv[]) {
         // path built in
         if (args[0] == "path") {
             shellPath.clear(); // clear shellPath to overwrite it
-            for (int i = 0; i < args.size(); i++) {
+            for (int i = 1; i < args.size(); i++) {
                 shellPath.push_back(args[i]); // add each arg as the new path
             }
             continue;
         }
 
-        // done checking built ins, search for executables
-        string executable = findExec(args[0], shellPath);
-        if (executable.empty()) {
-            char error_message[30] = "An error has occurred\n";
-            write(STDERR_FILENO, error_message, strlen(error_message));
-            continue; // prompt again
-        }
+        // done checking built ins
+        // parallel commands and execute
+        vector<vector<string>> commands = checkParallel(args);
+        vector<pid_t> pids;
+        for (int i = 0; i < commands.size(); i++) {
+            vector<string> currentCmd = commands[i];
 
-        // redirect stuff
-        string fileName = checkRedirect(args);
-        if (fileName == "uhoh") {
-            continue; // prompt again, error with redirect
-        }
+            // redirect stuff
+            string fileName = checkRedirect(currentCmd);
+            if (fileName == "uhoh") {
+                continue; // prompt again, error with redirect
+            }
 
-        // execute command
-        pid_t pid = fork();
-        if (pid == 0) {
-            // child process
-            // redirection
-            if (fileName != ""){
-                // need to write to a file, overwrite if exists, create if not\
-                // need user to read/write
-                int fd = open(fileName.c_str(), O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR);
-                if (fd < 0) { // open failed
-                    char error_message[30] = "An error has occurred\n";
-                    write(STDERR_FILENO, error_message, strlen(error_message));
-                    exit(1);
+            // search for executables
+            string executable = findExec(currentCmd[0], shellPath);
+            if (executable.empty()) {
+                char error_message[30] = "An error has occurred\n";
+                write(STDERR_FILENO, error_message, strlen(error_message));
+                continue; // prompt again
+            }
+
+            // execute command
+            pid_t pid = fork();
+            if (pid == 0) {
+                // child process
+                // redirection
+                if (fileName != ""){
+                    // need to write to a file, overwrite if exists, create if not
+                    // need user to read/write
+                    int fd = open(fileName.c_str(), O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR);
+                    if (fd < 0) { // open failed
+                        char error_message[30] = "An error has occurred\n";
+                        write(STDERR_FILENO, error_message, strlen(error_message));
+                        exit(1);
+                    }
+                    dup2(fd, STDOUT_FILENO);
+                    dup2(fd, STDERR_FILENO);
+                    close(fd);
                 }
-                dup2(fd, STDOUT_FILENO);
-                dup2(fd, STDERR_FILENO);
-                close(fd);
+                // continue with execution
+                char *execArgs[currentCmd.size() + 1]; // execv uses char* array
+                for (int i = 0; i < currentCmd.size(); i++) {
+                    execArgs[i] = (char *)currentCmd[i].c_str(); // convert string to char*
+                }
+                execArgs[currentCmd.size()] = NULL; // for execv, array must be terminated by null
+                execv(executable.c_str(), execArgs); // replace child process w command
+                // execv only returns when there is an error
+                char error_message[30] = "An error has occurred\n";
+                write(STDERR_FILENO, error_message, strlen(error_message));
+                exit(1); // end child process
             }
-            // continue with execution
-            char *execArgs[args.size() + 1]; // execv uses char* array
-            for (int i = 0; i < args.size(); i++) {
-                execArgs[i] = (char *)args[i].c_str(); // convert string to char*
+            else if (pid > 0) {
+                // parent process
+                pids.push_back(pid); // save pid
             }
-            execArgs[args.size()] = NULL; // for execv, array must be terminated by null
-
-            execv(executable.c_str(), execArgs); // replace child process w command
-            // execv only returns when there is an error
-            char error_message[30] = "An error has occurred\n";
-            write(STDERR_FILENO, error_message, strlen(error_message));
-            exit(1); // end child process
+            else {
+                // fork failed
+                char error_message[30] = "An error has occurred\n";
+                write(STDERR_FILENO, error_message, strlen(error_message));
+            }
         }
-        else if (pid > 0) {
-            // parent process
-            wait(NULL); // wait for child
+        // all processes started, now wait
+        for (int i = 0; i < pids.size(); i++) {
+            wait(NULL);
         }
-        else {
-            // fork failed
-            char error_message[30] = "An error has occurred\n";
-            write(STDERR_FILENO, error_message, strlen(error_message));
-        }
-
     }
 
     return 0;
