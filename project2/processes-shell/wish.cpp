@@ -72,6 +72,7 @@ using namespace std;
     // basic functionality (single command running like 'ls'), built in,
     // redirection, parallel commands, check whitespaces (?)
 
+// splits up command line input
 vector<string> parseCommand (string line) {
     vector<string> args; // vector of the args of the command line
     string arg;
@@ -93,7 +94,7 @@ vector<string> parseCommand (string line) {
         }
         // handle redirection or parallel symbols
         else if (c == '>' || c == '&'){ 
-            // add current arg to first then take symbol
+            // add current arg first then take symbol
             if (!arg.empty()) {
                 args.push_back(arg);
                 arg = "";
@@ -107,6 +108,7 @@ vector<string> parseCommand (string line) {
     return args;
 }
 
+// find executable in path
 string findExec(string line, vector<string> path) {
     for (int i = 0; i < path.size(); i++) {
         string searchPath = path[i] + "/" + line; // build search path
@@ -117,12 +119,13 @@ string findExec(string line, vector<string> path) {
     return ""; // not found
 }
 
+// checks for >
 string checkRedirect(vector<string> &args) { // & to change it in main
     string file = "";
     for (int i = 0; i < args.size(); i++) {
         if (args[i] == ">") {
             // nothing after > or multiple files after > (and multiple > symbols)
-            if (i + 1 != args.size() - 1) { // idx after > is not the last arg
+            if (i + 1 != args.size() - 1) { // index after > is not the last arg
                 char error_message[30] = "An error has occurred\n";
                 write(STDERR_FILENO, error_message, strlen(error_message));
                 return "uhoh";
@@ -141,7 +144,9 @@ string checkRedirect(vector<string> &args) { // & to change it in main
     return "";
 }
 
-vector<vector<string>> checkParallel(vector<string> args) { // parallel commands, need multiple vectors
+// checks for & to split into multiple commands
+// parallel commands, need multiple vectors
+vector<vector<string>> checkParallel(vector<string> args) { 
     vector<vector<string>> commands; // stores commands to be run in parallel
     vector<string> currentCmd; // command being currently built
     for (int i = 0; i < args.size(); i++) {
@@ -171,7 +176,8 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
-    if (argc == 2) { // batch mode
+    // check for batch mode
+    if (argc == 2) {
         int fd = open(argv[1], O_RDONLY);
         if (fd < 0) { // bad batch file
             char error_message[30] = "An error has occurred\n";
@@ -194,14 +200,15 @@ int main(int argc, char *argv[]) {
         vector<string> args = parseCommand(line); 
         
         if (args.empty()) {
-            continue; // prompt again
+            continue; // blank, prompt again
         }
 
         // exit built in
         if (args[0] == "exit") { 
-            if (args.size() > 1) { // args passed to 'exit', error!
+            if (args.size() > 1) { // args passed to 'exit', error
                 char error_message[30] = "An error has occurred\n";
                 write(STDERR_FILENO, error_message, strlen(error_message));
+                continue;
             }
             else {
                 exit(0);
@@ -237,11 +244,11 @@ int main(int argc, char *argv[]) {
         // done checking built ins
         // parallel commands and execute
         vector<vector<string>> commands = checkParallel(args);
-        vector<pid_t> pids;
+        vector<pid_t> pids; // store child pids
         for (int i = 0; i < commands.size(); i++) {
             vector<string> currentCmd = commands[i];
 
-            // redirect stuff
+            // check redirection
             string fileName = checkRedirect(currentCmd);
             if (fileName == "uhoh") {
                 continue; // prompt again, error with redirect
@@ -269,8 +276,8 @@ int main(int argc, char *argv[]) {
                         write(STDERR_FILENO, error_message, strlen(error_message));
                         exit(1); // end child process
                     }
-                    dup2(fd, STDOUT_FILENO);
-                    dup2(fd, STDERR_FILENO);
+                    dup2(fd, STDOUT_FILENO); // stdout rerouted to file
+                    dup2(fd, STDERR_FILENO); // stderr rerouted to file
                     close(fd);
                 }
                 // continue with execution
