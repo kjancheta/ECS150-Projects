@@ -50,6 +50,8 @@ using namespace std;
     // if the file exists, overwrite it
     // multiple redirect operators or multiple files to right
         // of redirection sign are errors
+    // format of redirection is a command (maybe some args) followed by > followed by filename
+        // so no command before > is an error
 // run parallel commands with & symbol
     // wish> cmd1 & cmd2 args1 args2 & cmd3 args1
         // runs cm1 cm2 and cm3 in parallel, not waiting for 1 to finish
@@ -115,6 +117,30 @@ string findExec(string line, vector<string> path) {
     return ""; // not found
 }
 
+string checkRedirect(vector<string> &args) { // & to change it in main
+    string file = "";
+    for (int i = 0; i < args.size(); i++) {
+        if (args[i] == ">") {
+            // nothing after > or multiple files after > (and multiple > symbols)
+            if (i + 1 != args.size() - 1) { // idx after > is not the last arg
+                char error_message[30] = "An error has occurred\n";
+                write(STDERR_FILENO, error_message, strlen(error_message));
+                return "uhoh";
+            }
+            // nothing before >
+            if (i == 0) { // i = 0, then > is first (no command before it)
+                char error_message[30] = "An error has occurred\n";
+                write(STDERR_FILENO, error_message, strlen(error_message));
+                return "uhoh";
+            }
+            file = args[i + 1]; // gets the file after >
+            args.erase(args.begin() + i, args.end()); // removes everything from > to end so execv works
+            return file;
+        }
+    }
+    return "";
+}
+
 int main(int argc, char *argv[]) {
     string line;
     vector<string> shellPath = {"/bin"}; // initial shell path, only one directory initially
@@ -125,6 +151,7 @@ int main(int argc, char *argv[]) {
             exit(0);
         }
 
+        // parse the command line
         vector<string> args = parseCommand(line); 
         
         if (args.empty()) {
@@ -168,6 +195,7 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
+        // done checking built ins, search for executables
         string executable = findExec(args[0], shellPath);
         if (executable.empty()) {
             char error_message[30] = "An error has occurred\n";
@@ -175,17 +203,38 @@ int main(int argc, char *argv[]) {
             continue; // prompt again
         }
 
+        // redirect stuff
+        string fileName = checkRedirect(args);
+        if (fileName == "uhoh") {
+            continue; // prompt again, error with redirect
+        }
+
         // execute command
         pid_t pid = fork();
         if (pid == 0) {
             // child process
+            // redirection
+            if (fileName != ""){
+                // need to write to a file, overwrite if exists, create if not\
+                // need user to read/write
+                int fd = open(fileName.c_str(), O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR);
+                if (fd < 0) { // open failed
+                    char error_message[30] = "An error has occurred\n";
+                    write(STDERR_FILENO, error_message, strlen(error_message));
+                    exit(1);
+                }
+                dup2(fd, STDOUT_FILENO);
+                dup2(fd, STDERR_FILENO);
+                close(fd);
+            }
+            // continue with execution
             char *execArgs[args.size() + 1]; // execv uses char* array
             for (int i = 0; i < args.size(); i++) {
                 execArgs[i] = (char *)args[i].c_str(); // convert string to char*
             }
             execArgs[args.size()] = NULL; // for execv, array must be terminated by null
 
-            execv(executable.c_str() ,execArgs); // replace child process w command
+            execv(executable.c_str(), execArgs); // replace child process w command
             // execv only returns when there is an error
             char error_message[30] = "An error has occurred\n";
             write(STDERR_FILENO, error_message, strlen(error_message));
