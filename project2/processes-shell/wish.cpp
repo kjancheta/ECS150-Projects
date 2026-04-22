@@ -77,9 +77,9 @@ vector<string> parseCommand (string line) {
     vector<string> args; // vector of the args of the command line
     string arg;
     // use stl::string class to parse
-    for (int i = 0; i <= line.size(); i++) {
+    for (int i = 0; i <= (int)line.size(); i++) {
         char c;
-        if (i == line.size()) { // to add final arg
+        if (i == (int)line.size()) { // to add final arg
             c = ' '; // treat c as whitespace
         }
         else {
@@ -110,7 +110,7 @@ vector<string> parseCommand (string line) {
 
 // find executable in path
 string findExec(string line, vector<string> path) {
-    for (int i = 0; i < path.size(); i++) {
+    for (int i = 0; i < (int)path.size(); i++) {
         string searchPath = path[i] + "/" + line; // build search path
         if (access(searchPath.c_str(), X_OK) == 0) { // 0 means its execute permission is enabled
             return searchPath; // found
@@ -122,10 +122,10 @@ string findExec(string line, vector<string> path) {
 // checks for >
 string checkRedirect(vector<string> &args) { // & to change it in main
     string file = "";
-    for (int i = 0; i < args.size(); i++) {
+    for (int i = 0; i < (int)args.size(); i++) {
         if (args[i] == ">") {
             // nothing after > or multiple files after > (and multiple > symbols)
-            if (i + 1 != args.size() - 1) { // index after > is not the last arg
+            if (i + 1 != (int)args.size() - 1) { // index after > is not the last arg
                 char error_message[30] = "An error has occurred\n";
                 write(STDERR_FILENO, error_message, strlen(error_message));
                 return "uhoh";
@@ -149,7 +149,7 @@ string checkRedirect(vector<string> &args) { // & to change it in main
 vector<vector<string>> checkParallel(vector<string> args) { 
     vector<vector<string>> commands; // stores commands to be run in parallel
     vector<string> currentCmd; // command being currently built
-    for (int i = 0; i < args.size(); i++) {
+    for (int i = 0; i < (int)args.size(); i++) {
         if (args[i] == "&") {
             if (!currentCmd.empty()) {
                 commands.push_back(currentCmd); // store command to list of commands
@@ -235,7 +235,7 @@ int main(int argc, char *argv[]) {
         // path built in
         if (args[0] == "path") {
             shellPath.clear(); // clear shellPath to overwrite it
-            for (int i = 1; i < args.size(); i++) {
+            for (int i = 1; i < (int)args.size(); i++) {
                 shellPath.push_back(args[i]); // add each arg as the new path
             }
             continue;
@@ -245,7 +245,7 @@ int main(int argc, char *argv[]) {
         // parallel commands and execute
         vector<vector<string>> commands = checkParallel(args);
         vector<pid_t> pids; // store child pids
-        for (int i = 0; i < commands.size(); i++) {
+        for (int i = 0; i < (int)commands.size(); i++) {
             vector<string> currentCmd = commands[i];
 
             // check redirection
@@ -282,7 +282,7 @@ int main(int argc, char *argv[]) {
                 }
                 // continue with execution
                 char *execArgs[currentCmd.size() + 1]; // execv uses char* array
-                for (int i = 0; i < currentCmd.size(); i++) {
+                for (int i = 0; i < (int)currentCmd.size(); i++) {
                     execArgs[i] = (char *)currentCmd[i].c_str(); // convert string to char*
                 }
                 execArgs[currentCmd.size()] = NULL; // for execv, array must be terminated by null
@@ -303,7 +303,7 @@ int main(int argc, char *argv[]) {
             }
         }
         // all processes started, now wait
-        for (int i = 0; i < pids.size(); i++) {
+        for (int i = 0; i < (int)pids.size(); i++) {
             wait(NULL);
         }
     }
