@@ -34,7 +34,7 @@ bool FileService::endswith(string str, string suffix) {
 }
 
 void FileService::get(HTTPRequest *request, HTTPResponse *response) {
-  string requestPath = request->getPath();
+  string requestPath = request->getPath(); // used to check if path has '..'
   string path = this->m_basedir + requestPath;
   string fileContents = this->readFile(path);
   if (fileContents.size() == 0 || (requestPath.find("..") != string::npos)) {
