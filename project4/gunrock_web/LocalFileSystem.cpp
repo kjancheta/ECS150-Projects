@@ -26,6 +26,32 @@ bool bitAvailable(int bit_pos, unsigned char* bitmap) {
   }
 }
 
+void getDirTable(inode_t dirInode, Disk* disk, int dirTableSize, dir_ent_t* dirTable) {
+  //determine number of blocks in data region to read
+  int blocks = dirInode.size / UFS_BLOCK_SIZE; // find # of blocks directory has
+  if ((dirInode.size % UFS_BLOCK_SIZE) != 0) { // if not multiple of 4096, add a block
+    blocks += 1;
+  }
+
+  //read data blocks that contains dir table information
+  unsigned char* dirTableBuffer = new unsigned char[blocks * UFS_BLOCK_SIZE]; // buffer to hold blocks
+  for (int i = 0; i < blocks; i++) {
+    int dataBlockNum = dirInode.direct[i]; 
+    unsigned char dataBlock[UFS_BLOCK_SIZE];  
+    disk->readBlock(dataBlockNum, dataBlock);
+    memcpy(dirTableBuffer + (i*UFS_BLOCK_SIZE), dataBlock, UFS_BLOCK_SIZE); // copy block data
+  }
+
+  //transfer dirTableBuffer into dirTable
+  for (int i = 0; i < dirTableSize; i++) {
+    dir_ent_t tempDirEnt;
+    memcpy(&tempDirEnt, dirTableBuffer + (i * sizeof(dir_ent_t)), sizeof(dir_ent_t));
+    dirTable[i] = tempDirEnt;
+  }
+  
+  delete[] dirTableBuffer;
+}
+
 
 
 // member functions
@@ -75,7 +101,31 @@ void LocalFileSystem::writeInodeRegion(super_t *super, inode_t *inodes) {
 }
 
 int LocalFileSystem::lookup(int parentInodeNumber, string name) {
-  return 0;
+  super_t super;
+  readSuperBlock(&super);
+
+  inode_t parentInode;
+  if (stat(parentInodeNumber, &parentInode) < 0) { // get parent data
+    return -EINVALIDINODE;
+  }
+
+  if ((parentInodeNumber < 0) || (parentInodeNumber >= super.num_inodes) || (parentInode.type != UFS_DIRECTORY)) { // check if parent inode is valid
+    return -EINVALIDINODE; 
+  } 
+  else {
+    // populate dir table
+    int dirTableSize = parentInode.size/sizeof(dir_ent_t); // get number of slots
+    dir_ent_t dirTable[dirTableSize];
+    getDirTable(parentInode, disk, dirTableSize, dirTable);
+
+    //use name to search for inode number in dirTable
+    for (int i = 0; i < dirTableSize; i++) { // iterate through dirTable to find string match
+      if (name == dirTable[i].name) {
+        return dirTable[i].inum; // match found, return inode number entry
+      }
+    }
+    return -EINVALIDINODE; // not found
+  }
 }
 
 int LocalFileSystem::stat(int inodeNumber, inode_t *inode) {
