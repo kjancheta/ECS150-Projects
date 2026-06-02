@@ -13,6 +13,20 @@
 
 using namespace std;
 
+// helper functions
+
+bool bitAvailable(int bit_pos, unsigned char* bitmap) {
+  unsigned char img_byte = bitmap[bit_pos / 8]; // target position
+  unsigned char mask =  1 << (bit_pos % 8); // make a bit mask
+  if ((mask & img_byte) == 0) { // bitwise AND, if 0 its available, else its in use
+    return true;
+  }
+  else  {
+    return false; //bit_pos in use  
+  }
+}
+
+
 
 // member functions
 
@@ -65,6 +79,25 @@ int LocalFileSystem::lookup(int parentInodeNumber, string name) {
 }
 
 int LocalFileSystem::stat(int inodeNumber, inode_t *inode) {
+  super_t super;
+  readSuperBlock(&super);
+
+  if (inodeNumber < 0 || inodeNumber >= super.num_inodes) { // check if inodenumber within bounds
+    return -EINVALIDINODE;
+  }
+
+  // return error if inode not in use 
+  unsigned char inodeBitmap[super.inode_bitmap_len * UFS_BLOCK_SIZE]; // allocate buffer
+  readInodeBitmap(&super, inodeBitmap); 
+  if (bitAvailable(inodeNumber, inodeBitmap)) { // check if inode in use
+    return -EINVALIDINODE;
+  }
+
+  // get inode table
+  inode_t inodeTable[super.num_inodes];
+  readInodeRegion(&super, inodeTable);
+
+  *inode = inodeTable[inodeNumber]; // copy inode
   return 0;
 }
 
