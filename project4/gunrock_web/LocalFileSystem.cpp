@@ -26,35 +26,66 @@ bool bitAvailable(int bit_pos, unsigned char* bitmap) {
   }
 }
 
-void getDirTable(inode_t dirInode, Disk* disk, int dirTableSize, dir_ent_t* dirTable) {
-  //determine number of blocks in data region to read
-  int blocks = dirInode.size / UFS_BLOCK_SIZE; // find # of blocks directory has
-  if ((dirInode.size % UFS_BLOCK_SIZE) != 0) { // if not multiple of 4096, add a block
+int byteToBlocks(int size) {
+  int blocks = size / UFS_BLOCK_SIZE; // find # of blocks directory has
+  if ((size % UFS_BLOCK_SIZE) != 0) { // if not multiple of 4096, add a block
     blocks += 1;
   }
+  return blocks;
+}
 
-  //read data blocks that contains dir table information
+void getDirTable(inode_t dirInode, Disk* disk, int dirTableSize, dir_ent_t* dirTable) {
+  int blocks = byteToBlocks(dirInode.size); // determine number of blocks in data region to read
+
+  // read data blocks that contains dir table information
   unsigned char* dirTableBuffer = new unsigned char[blocks * UFS_BLOCK_SIZE]; // buffer to hold blocks
   for (int i = 0; i < blocks; i++) {
-    int dataBlockNum = dirInode.direct[i]; 
-    unsigned char dataBlock[UFS_BLOCK_SIZE];  
-    disk->readBlock(dataBlockNum, dataBlock);
-    memcpy(dirTableBuffer + (i*UFS_BLOCK_SIZE), dataBlock, UFS_BLOCK_SIZE); // copy block data
+    int dataBlockNum = dirInode.direct[i]; // address
+    unsigned char dataBlock[UFS_BLOCK_SIZE]; // hold one block's data
+    disk->readBlock(dataBlockNum, dataBlock); // read data block and put into temp
+    memcpy(dirTableBuffer + (i * UFS_BLOCK_SIZE), dataBlock, UFS_BLOCK_SIZE); // copy block data into buffer
   }
 
-  //transfer dirTableBuffer into dirTable
+  // transfer dirTableBuffer into dirTable
   for (int i = 0; i < dirTableSize; i++) {
-    dir_ent_t tempDirEnt;
-    memcpy(&tempDirEnt, dirTableBuffer + (i * sizeof(dir_ent_t)), sizeof(dir_ent_t));
-    dirTable[i] = tempDirEnt;
+    dir_ent_t tempDirEntry;
+    memcpy(&tempDirEntry, dirTableBuffer + (i * sizeof(dir_ent_t)), sizeof(dir_ent_t)); // copy data into temp dirEntry
+    dirTable[i] = tempDirEntry; // assign to corresponding index
   }
   
   delete[] dirTableBuffer;
 }
 
+void getFileContent(inode_t* fileInode, Disk* disk, int size, unsigned char* fileContent) {
+  int blocks = byteToBlocks(size); // determine # of blocks in data region to read
 
+  // read data blocks with file content
+  unsigned char* fileContentBuffer = new unsigned char[blocks * UFS_BLOCK_SIZE]; // buffer to hold file content
+  for (int i = 0; i < blocks; i++) {
+    int dataBlockNumber = fileInode->direct[i]; // get data block index
+    unsigned char dataBlock[UFS_BLOCK_SIZE]; 
+    disk->readBlock(dataBlockNumber, dataBlock); // read from disk into temp data block
+    memcpy(fileContentBuffer + (i * UFS_BLOCK_SIZE), dataBlock, UFS_BLOCK_SIZE); // copy into buffer
+  }
 
-// member functions
+  for (int i = 0; i < blocks; i++) {
+    int readSize = 0;
+    if (i == (blocks - 1)) { // check if i is on the last block
+      readSize = size % UFS_BLOCK_SIZE; // calculate leftover bytes
+      if (readSize == 0) { // if no leftover
+        readSize = UFS_BLOCK_SIZE; // read whole block
+      }
+    } 
+    else {
+      readSize = UFS_BLOCK_SIZE; // read full block if not on last block
+    }  
+    memcpy(fileContent + (i * UFS_BLOCK_SIZE), fileContentBuffer + (i * UFS_BLOCK_SIZE), readSize); // copy from buffer into fileContent
+  }
+
+  delete[] fileContentBuffer;
+}
+
+// member functions*********************************************************************************
 
 LocalFileSystem::LocalFileSystem(Disk *disk) {
   this->disk = disk;
@@ -184,7 +215,33 @@ int LocalFileSystem::stat(int inodeNumber, inode_t *inode) {
 }
 
 int LocalFileSystem::read(int inodeNumber, void *buffer, int size) {
-  return 0;
+  super_t super;
+  inode_t inode;
+  readSuperBlock(&super);
+  stat(inodeNumber, &inode);
+
+  // check for valid inode number
+  if ((inodeNumber < 0) || (inodeNumber >= super.num_inodes)) {
+    return -EINVALIDINODE;
+  }
+  // check for size
+  if (size < inode.size) { // if size larger than size of object, return bytes of object
+    size = inode.size;
+  }
+
+  if (inode.type == UFS_DIRECTORY) {
+    int dirTableSize = inode.size/sizeof(dir_ent_t); // get number of directory entries
+    dir_ent_t dirTable[dirTableSize];
+    getDirTable(inode, disk, dirTableSize, dirTable); // get directory entries from disk
+    memcpy(buffer, dirTable, size); // copy directory table to buffer
+  } 
+  else { // UFS_REGULAR_FILE
+    unsigned char fileContent[size];
+    getFileContent(&inode, disk, size, fileContent); // get file data from disk
+    memcpy(buffer, fileContent, size); // copy file content to buffer
+  }
+
+  return size; // return bytes read
 }
 
 int LocalFileSystem::create(int parentInodeNumber, int type, string name) {
