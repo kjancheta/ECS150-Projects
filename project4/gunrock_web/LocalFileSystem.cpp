@@ -93,11 +93,43 @@ void LocalFileSystem::writeDataBitmap(super_t *super, unsigned char *dataBitmap)
 }
 
 void LocalFileSystem::readInodeRegion(super_t *super, inode_t *inodes) {
+  unsigned char tempBuffer[UFS_BLOCK_SIZE]; // hold 1 disk block
+  unsigned char *inodeBuffer = new unsigned char[super->inode_region_len * UFS_BLOCK_SIZE]; // buffer to hold inode region
 
+  // read 4KB inode blocks from disk
+  for (int i = 0; i < super->inode_region_len; i++) {
+    disk->readBlock(super->inode_region_addr + i, tempBuffer); // read block from disk and put into tempbuffer
+    memcpy(inodeBuffer + (i * UFS_BLOCK_SIZE), tempBuffer, UFS_BLOCK_SIZE); // copy block to place in buffer by offset
+  }
+
+  // transfer inode blocks into array of inodes
+  for (int i = 0; i < super->num_inodes; i++) {
+    inode_t tempInode;
+    memcpy(&tempInode, inodeBuffer + (i * sizeof(inode_t)), sizeof(inode_t)); // copy offset inode block into tempinode
+    inodes[i] = tempInode; // assign to corresponding inode and inode number
+  }
+
+  delete[] inodeBuffer;
 }
 
 void LocalFileSystem::writeInodeRegion(super_t *super, inode_t *inodes) {
+  unsigned char tempBuffer[UFS_BLOCK_SIZE]; // hold 1 disk block
+  unsigned char *inodeBuffer = new unsigned char[super->inode_region_len * UFS_BLOCK_SIZE]; // buffer to hold inode region
 
+  // transfer array of inodes to inode blocks
+  for (int i = 0; i < super->num_inodes; i++) {
+    inode_t tempInode;
+    tempInode = inodes[i];
+    memcpy(inodeBuffer + (i * sizeof(inode_t)), &tempInode, sizeof(inode_t)); // copy inode to its place in buffer by offset
+  }
+
+  // write 4KB inode blocks to disk one at a time
+  for (int i = 0; i < super->inode_region_len; i++) {
+    memcpy(tempBuffer, inodeBuffer + (i * UFS_BLOCK_SIZE), UFS_BLOCK_SIZE); // copy from buffer to tempbuffer
+    disk->writeBlock(super->inode_region_addr + i, tempBuffer); // write block to correct address
+  }
+
+  delete[] inodeBuffer;
 }
 
 int LocalFileSystem::lookup(int parentInodeNumber, string name) {
