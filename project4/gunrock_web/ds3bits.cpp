@@ -8,7 +8,8 @@
 #include "ufs.h"
 
 using namespace std;
-
+// prints metadata for the file system on a disk image. 
+// It takes a single command line argument: the name of a disk image file.
 
 int main(int argc, char *argv[]) {
   if (argc != 2) {
