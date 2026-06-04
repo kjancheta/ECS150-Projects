@@ -204,7 +204,12 @@ void LocalFileSystem::readInodeBitmap(super_t *super, unsigned char *inodeBitmap
 }
 
 void LocalFileSystem::writeInodeBitmap(super_t *super, unsigned char *inodeBitmap) {
+  unsigned char tempBuffer[UFS_BLOCK_SIZE]; // hold 1 disk block
 
+  for (int i = 0; i < super->inode_bitmap_len; i++) { // loop through every disk block for inode bitmap
+    memcpy(tempBuffer, inodeBitmap + (i * UFS_BLOCK_SIZE), UFS_BLOCK_SIZE); // copy into temp buffer
+    disk->writeBlock(super->inode_bitmap_addr + i, tempBuffer); // write into place in disk
+  }
 }
 
 void LocalFileSystem::readDataBitmap(super_t *super, unsigned char *dataBitmap) { 
@@ -217,7 +222,12 @@ void LocalFileSystem::readDataBitmap(super_t *super, unsigned char *dataBitmap) 
 }
 
 void LocalFileSystem::writeDataBitmap(super_t *super, unsigned char *dataBitmap) {
+  unsigned char tempBuffer[UFS_BLOCK_SIZE]; // hold 1 disk block
 
+  for (int i = 0; i < super->data_bitmap_len; i++) { // loop through every disk block for data bitmap
+    memcpy(tempBuffer, dataBitmap + (i * UFS_BLOCK_SIZE), UFS_BLOCK_SIZE); // copy into temp buffer
+    disk->writeBlock(super->data_bitmap_addr + i, tempBuffer); // write into place in disk
+  }
 }
 
 void LocalFileSystem::readInodeRegion(super_t *super, inode_t *inodes) {
