@@ -7,7 +7,7 @@
 #include "ufs.h"
 
 using namespace std;
-// creates directory
+// creates new directory
 // takes disk file image, parentInode for directory the new entry is made, name of new entry
 
 int main(int argc, char *argv[]) {
