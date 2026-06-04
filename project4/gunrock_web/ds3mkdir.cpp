@@ -7,6 +7,8 @@
 #include "ufs.h"
 
 using namespace std;
+// creates directory
+// takes disk file image, parentInode for directory the new entry is made, name of new entry
 
 int main(int argc, char *argv[]) {
   if (argc != 4) {
@@ -17,12 +19,38 @@ int main(int argc, char *argv[]) {
   }
 
   // Parse command line arguments
-  /*
   Disk *disk = new Disk(argv[1], UFS_BLOCK_SIZE);
   LocalFileSystem *fileSystem = new LocalFileSystem(disk);
-  int parentInode = stoi(argv[2]);
+  int parentInodeNumber = stoi(argv[2]);
   string directory = string(argv[3]);
-  */
   
+  super_t super;
+  fileSystem->readSuperBlock(&super);
+  inode_t parentInode;
+
+  if (fileSystem->stat(parentInodeNumber, &parentInode) < 0) { // error
+    cerr << "Error creating directory" << endl;
+    delete fileSystem;
+    delete disk;  
+    return 1;
+  }
+
+  if (parentInode.type != UFS_DIRECTORY) { // check if parent inode is a directory 
+    cerr << "Error creating directory" << endl;
+    delete fileSystem;
+    delete disk;
+    return 1;
+  }
+
+  int temp = fileSystem->create(parentInodeNumber, UFS_DIRECTORY, directory); // attempt to make new directory
+  if (temp < 0) { // error
+    cerr << "Error creating directory" << endl;
+    delete fileSystem;
+    delete disk;
+    return 1;
+  }
+  
+  delete fileSystem;
+  delete disk;
   return 0;
 }
