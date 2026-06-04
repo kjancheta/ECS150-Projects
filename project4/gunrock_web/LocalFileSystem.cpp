@@ -15,15 +15,21 @@ using namespace std;
 
 // helper functions
 
-bool bitAvailable(int bit_pos, unsigned char* bitmap) {
-  unsigned char img_byte = bitmap[bit_pos / 8]; // target position
-  unsigned char mask =  1 << (bit_pos % 8); // make a bit mask
-  if ((mask & img_byte) == 0) { // bitwise AND, if 0 its available, else its in use
+bool bitAvailable(int bitPos, unsigned char* bitmap) {
+  unsigned char imgByte = bitmap[bitPos / 8]; // target position
+  unsigned char mask =  1 << (bitPos % 8); // make a bit mask
+  if ((mask & imgByte) == 0) { // bitwise AND, if 0 its available, else its in use
     return true;
   }
   else  {
-    return false; //bit_pos in use  
+    return false; //bitPos in use  
   }
+}
+
+void setBitAvailable(int bitPos, unsigned char* bitmap) {
+  unsigned char imgByte = bitmap[bitPos / 8]; // target position
+  unsigned char mask =  ~(1 << (bitPos % 8)); // make a bit mask with 0
+  bitmap[bitPos / 8]  = mask & imgByte; // bitwise AND to make it 0
 }
 
 int byteToBlocks(int size) {
@@ -85,7 +91,98 @@ void getFileContent(inode_t* fileInode, Disk* disk, int size, unsigned char* fil
   delete[] fileContentBuffer;
 }
 
-// member functions*********************************************************************************
+// finds first available 0 bit in bitmap and marks as in use, returning the index
+int getAndSetAvailableBit(int totalBits, unsigned char* bitmap) {
+  for (int i = 0; i < totalBits ; i++){
+    int byteIdx = i / 8;
+    int bitPosition = i % 8;
+    
+    if ((bitmap[byteIdx] & (1 << bitPosition)) == 0) { // use bitwise AND to check if the position is free (0)
+      bitmap[byteIdx] |= (1 << bitPosition); // flip bit to 1 (in use)
+      return i; // return index
+    }
+  }
+  return -1; // no free bit is found 
+}
+
+// determine # of data blocks to write, update dataBitMap
+int writeDataBlock(LocalFileSystem *fileSystem, int inodeNumber, const void *buffer, int size) {
+  super_t super;
+  fileSystem->readSuperBlock(&super);
+  inode_t inode;
+  int stat = fileSystem->stat(inodeNumber, &inode);
+  if (stat < 0 ){
+    return stat;
+  } 
+
+  int blocksToWrite = byteToBlocks(size); // # of data blocks to write
+  int originalBlocks = byteToBlocks(inode.size); // original # of data blocks
+
+  // list of data block numbers to write to
+  vector<unsigned int> dataBlockNumVec; 
+  for(int i = 0; i < min(originalBlocks, blocksToWrite); i++){
+    dataBlockNumVec.push_back(inode.direct[i]);
+  }
+
+  unsigned char* dataBitmap = new unsigned char[super.data_bitmap_len * UFS_BLOCK_SIZE];
+  fileSystem->readDataBitmap(&super, dataBitmap);
+  // New blocks are needed if originalBlocks < blocks 
+  // need to update dataBitmap to indicate that newly created block will be in use
+  if (originalBlocks < blocksToWrite) { // file is expanding, needs new blocks
+    for (int i = 0; i < (blocksToWrite - originalBlocks); i++) {
+      int freeInodeIdx = getAndSetAvailableBit(super.num_data, dataBitmap);
+      if (freeInodeIdx < 0) {
+        delete[] dataBitmap;
+        return -1; 
+      } 
+      
+      // write to data bitmap only when there are free data blocks
+      int unusedDataBlockNum = super.data_region_addr + freeInodeIdx;
+      fileSystem->writeDataBitmap(&super, dataBitmap); // save bitmap changes
+      dataBlockNumVec.push_back(unusedDataBlockNum);
+    }
+  }
+
+  // if new entry uses fewer data blocks, free the extra data blocks
+  if (blocksToWrite < originalBlocks) { // file is getting smaller
+    for (int i = blocksToWrite; i < originalBlocks; i++) {
+      setBitAvailable(inode.direct[i] - super.data_region_addr, dataBitmap); // mark as available in bitmap
+    }
+    fileSystem->writeDataBitmap(&super, dataBitmap);
+  } 
+
+  delete[] dataBitmap;
+
+  // iterate through the list of data block numbers to transfer buffer into data blocks
+  unsigned char* tempBuffer = new unsigned char[UFS_BLOCK_SIZE];
+  for (size_t i = 0; i < dataBlockNumVec.size(); i++) {
+    memset(tempBuffer, 0, UFS_BLOCK_SIZE); // initialize block to 0
+
+    if (i < dataBlockNumVec.size() - 1) { // copy ful block size
+      memcpy(tempBuffer, static_cast<const u_int8_t*>(buffer) + (i * UFS_BLOCK_SIZE), UFS_BLOCK_SIZE);
+    }
+    else { // last set of bytes to write
+      int sizeLast = size % UFS_BLOCK_SIZE;
+      if (sizeLast == 0) sizeLast = UFS_BLOCK_SIZE;
+      memcpy(tempBuffer, static_cast<const u_int8_t*>(buffer)  + (i * UFS_BLOCK_SIZE), sizeLast);
+    }
+    fileSystem->disk->writeBlock(dataBlockNumVec[i], tempBuffer); // write to disk
+    inode.direct[i] = dataBlockNumVec[i]; // update inode poiter
+  }
+  delete[] tempBuffer;
+
+  // update inode information, and write into inodeTable
+  inode.size = size; // update size property
+  inode_t* inodeTable = new inode_t[super.num_inodes];
+  fileSystem->readInodeRegion(&super, inodeTable); // read inode region
+  inodeTable[inodeNumber] = inode; // put in updated inode
+  fileSystem->writeInodeRegion(&super, inodeTable); // write it back
+
+  delete[] inodeTable;
+  return 0;
+}
+
+// member functions********************************************************************************************
 
 LocalFileSystem::LocalFileSystem(Disk *disk) {
   this->disk = disk;
@@ -187,7 +284,7 @@ int LocalFileSystem::lookup(int parentInodeNumber, string name) {
         return dirTable[i].inum; // match found, return inode number entry
       }
     }
-    return -EINVALIDINODE; // not found
+    return -ENOTFOUND; // not found
   }
 }
 
@@ -245,7 +342,112 @@ int LocalFileSystem::read(int inodeNumber, void *buffer, int size) {
 }
 
 int LocalFileSystem::create(int parentInodeNumber, int type, string name) {
-  return 0;
+  super_t super;
+  readSuperBlock(&super);
+
+  inode_t parentInode;
+
+  // check for errors
+  if (stat(parentInodeNumber, &parentInode) < 0) {
+    return -EINVALIDINODE;
+  }
+  if ((type != UFS_DIRECTORY) && (type != UFS_REGULAR_FILE)) {
+    return -EINVALIDTYPE;
+  }
+  if (name.find('/') != string::npos) {
+  return -EINVALIDNAME;
+  }
+  if ((name.size() >= DIR_ENT_NAME_SIZE) || (name.size() < 1)) {
+    return -EINVALIDNAME;
+  }
+  if ((name == ".") || (name == "..")) {
+    return -EINVALIDNAME;
+  }
+  if ((parentInodeNumber < 0) || (parentInodeNumber >= super.num_inodes) || (parentInode.type != UFS_DIRECTORY)) {
+    return -EINVALIDINODE;
+  }
+
+  // check if name exists
+  int inodeNumber = lookup(parentInodeNumber, name);
+  if (inodeNumber >= 0) { // name exists
+    inode_t inode;
+    if (stat(inodeNumber, &inode) < 0) {
+      return -EINVALIDINODE;
+    }
+    if (inode.type == type) { // name exists and is right type
+      return inodeNumber; 
+    }
+    return -EINVALIDTYPE; // exists but wrong type
+  }
+
+  // inodeNumber < 0
+  // need to create new inode and write to data blocks
+
+  // update inodeBitmap since newly created inode
+  unsigned char* inodeBitmap = new unsigned char[super.inode_bitmap_len * UFS_BLOCK_SIZE];
+  readInodeBitmap(&super, inodeBitmap);
+  int newInodeNumber = getAndSetAvailableBit(super.num_inodes, inodeBitmap); // find free slot
+  if (newInodeNumber < 0) { // no available inodes
+    delete[] inodeBitmap;
+    return -ENOTENOUGHSPACE;
+  }
+  writeInodeBitmap(&super, inodeBitmap); // update bitmap
+
+  // add new inode to inode table
+  inode_t* inodeTable = new inode_t[super.num_inodes];
+  readInodeRegion(&super, inodeTable);
+  inode_t newInode;
+  newInode.type = type;
+  newInode.size = 0;
+  inodeTable[newInodeNumber] = newInode;
+  writeInodeRegion(&super, inodeTable);
+  delete[] inodeTable;
+
+  // write to data blocks pointed to by newInode
+  int writeDone = -1;
+  if (type == UFS_DIRECTORY) { // newInode is a directory
+    dir_ent_t curr; // "."
+    dir_ent_t parent; // ".."
+    memset(&curr, 0, sizeof(dir_ent_t)); // initialize all 0
+    memset(&parent, 0, sizeof(dir_ent_t)); // initialize all 0
+    curr.name[0] = '.'; 
+    curr.inum = newInodeNumber;
+    parent.name[0] = '.'; 
+    parent.name[1] = '.';
+    parent.inum = parentInodeNumber;
+    dir_ent_t newDirTable[] = {curr, parent};
+    writeDone = writeDataBlock(this, newInodeNumber, newDirTable, sizeof(newDirTable));
+    if (writeDone < 0) { // writing blocks failed
+      setBitAvailable(newInodeNumber, inodeBitmap); // set newInodeNumber as available again
+      writeInodeBitmap(&super, inodeBitmap); // update bitmap
+      delete[] inodeBitmap;
+      return -ENOTENOUGHSPACE;
+    }
+  } // else, newInode is a regular file, no need to update data blocks
+
+  // add new dir entry to existing dirTable pointed to by parentInode
+  int dirTableSize = parentInode.size / sizeof(dir_ent_t);
+  dir_ent_t dirTable[dirTableSize + 1]; // 1 extra for new
+  getDirTable(parentInode, disk, dirTableSize, dirTable);
+  dir_ent_t newDirEnt;
+  memset(&newDirEnt, 0, sizeof(dir_ent_t)); // initialize all 0
+  memcpy(newDirEnt.name, name.c_str(), name.size() + 1); // copy string name
+  newDirEnt.inum = newInodeNumber; // set to new inode number
+  dirTable[dirTableSize] = newDirEnt; // put new entry at end 
+
+  // write updated parent dir back to disk
+  writeDone = writeDataBlock(this, parentInodeNumber, dirTable, sizeof(dirTable));
+
+  // if data blocks full, free allocated inodes before error
+  if (writeDone < 0) {
+    setBitAvailable(newInodeNumber, inodeBitmap); // set newInodeNumber as available again
+    writeInodeBitmap(&super, inodeBitmap); // update bitmap
+    delete[] inodeBitmap;
+    return -ENOTENOUGHSPACE;
+  }
+
+  delete[] inodeBitmap;
+  return newInodeNumber;
 }
 
 int LocalFileSystem::write(int inodeNumber, const void *buffer, int size) {
