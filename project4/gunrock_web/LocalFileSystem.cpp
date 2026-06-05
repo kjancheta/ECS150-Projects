@@ -182,6 +182,21 @@ int writeDataBlock(LocalFileSystem *fileSystem, int inodeNumber, const void *buf
   return 0;
 }
 
+int countAvailableBits(const unsigned char* bitmap, int size) {
+  int bitCount = 0; // count 0 (available) bits
+
+  for (int i = 0; i < size; i++) { // loop thru bytes
+    unsigned char byte = bitmap[i]; // take current byte
+    for (uint8_t position = 0; position < 8; position++) { // iterate thru bits in byte
+      uint8_t mask = (1 << position); // bitmask with 1, shifted to position
+      if (!(byte & mask)) { // bitwise AND, if its 0 then increment
+        bitCount++;
+      }
+    }
+  }
+  return bitCount;
+}
+
 // member functions********************************************************************************************
 
 LocalFileSystem::LocalFileSystem(Disk *disk) {
@@ -461,7 +476,49 @@ int LocalFileSystem::create(int parentInodeNumber, int type, string name) {
 }
 
 int LocalFileSystem::write(int inodeNumber, const void *buffer, int size) {
-  return 0;
+  super_t super; 
+  readSuperBlock(&super);
+
+  inode_t inode;
+  int resultStat = stat(inodeNumber, &inode);
+
+  // check errors
+  if (resultStat < 0) {
+    return -EINVALIDINODE;
+  }
+  if (size < 0) {
+    return -EINVALIDSIZE;
+  }
+  if (inode.type == UFS_DIRECTORY) { // error, cant write to directories
+    return -EINVALIDTYPE;
+  }
+
+  // write as many bytes as possible, blocks needed for size and # the file uses already
+  int blocksToWrite = byteToBlocks(size); // # of data blocks to write
+  int originalBlocks = byteToBlocks(inode.size); // original # of data blocks
+
+  // check available data blocks
+  unsigned char* dataBitmap = new unsigned char[super.data_bitmap_len * UFS_BLOCK_SIZE];
+  readDataBitmap(&super, dataBitmap);
+  int dataBitmapBytes = super.num_data / 8; // convert bits to bytes
+  if (super.num_data % 8 != 0) {
+    dataBitmapBytes += 1;
+  }
+  int availableBlocks = countAvailableBits(dataBitmap, dataBitmapBytes); // count # of available bits
+  
+  // need more blocks than disk has
+  if (availableBlocks < (blocksToWrite - originalBlocks)) {
+    size = UFS_BLOCK_SIZE * (availableBlocks + originalBlocks);
+  }
+
+  int resultDataBlockWrite = writeDataBlock(this, inodeNumber, buffer, size); 
+  if (resultDataBlockWrite < 0) { // error
+    delete[] dataBitmap;
+    return resultDataBlockWrite;
+  }
+
+  delete[] dataBitmap;
+  return size; // return bytes written
 }
 
 int LocalFileSystem::unlink(int parentInodeNumber, string name) {
