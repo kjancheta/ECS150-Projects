@@ -8,7 +8,9 @@
 #include "ufs.h"
 
 using namespace std;
-
+// removes a file or empty directory from your disk image's file system. 
+// It takes three arguments: the disk image file name, the inode for the parent directory, and the name of the file or
+  // directory that you want to delete.
 
 int main(int argc, char *argv[]) {
   if (argc != 4) {
@@ -17,12 +19,20 @@ int main(int argc, char *argv[]) {
   }
 
   // Parse command line arguments
-  /*
   Disk *disk = new Disk(argv[1], UFS_BLOCK_SIZE);
   LocalFileSystem *fileSystem = new LocalFileSystem(disk);
-  int parentInode = stoi(argv[2]);
+  int parentInodeNumber = stoi(argv[2]);
   string entryName = string(argv[3]);
-  */
+  
+  int unlink = fileSystem->unlink(parentInodeNumber, entryName); // call unlink to remove
+  if (unlink < 0) { // error
+    cerr << "Error removing entry" << endl;
+    delete fileSystem;
+    delete disk;  
+    return 1;
+  }
 
+  delete fileSystem;
+  delete disk;  
   return 0;
 }

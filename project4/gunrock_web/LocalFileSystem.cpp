@@ -465,6 +465,88 @@ int LocalFileSystem::write(int inodeNumber, const void *buffer, int size) {
 }
 
 int LocalFileSystem::unlink(int parentInodeNumber, string name) {
+  super_t super; 
+  readSuperBlock(&super);
+
+  // error if parentInodeNumber does not exist or isnt a directory
+  inode_t parentInode;
+  int resultStat = stat(parentInodeNumber, &parentInode);
+  if ((resultStat < 0) || (parentInodeNumber < 0) || (parentInodeNumber >= super.num_inodes) || (parentInode.type != UFS_DIRECTORY)) {
+    return -EINVALIDINODE;
+  }
+  // error if invalid name
+  if ((name.size() >= DIR_ENT_NAME_SIZE) || (name.size() < 1) || (name.find('/') != string::npos)) {
+    return -EINVALIDNAME;
+  }
+  // error if name is '.' or '..'
+  if ((name == ".") || (name == "..")) {
+    return -EUNLINKNOTALLOWED;
+  }
+
+  // get directory table from parentInode
+  int dirTableSize = parentInode.size/sizeof(dir_ent_t); 
+  dir_ent_t* dirTable = new dir_ent_t[dirTableSize]; // hold directory entries
+  getDirTable(parentInode, disk, dirTableSize, dirTable);
+
+  // check if targetInode is dir inode or regular file inode
+  inode_t targetInode;
+  int targetInodeNumber = lookup(parentInodeNumber, name); // search parent directory to find inode number linked to the name
+  if (targetInodeNumber < 0) { // doesnt exist
+    delete[] dirTable;
+    return 0; // entry does not exist, NOT a failure
+  }
+  resultStat = stat(targetInodeNumber, &targetInode); // get data for targetInode
+  if (resultStat < 0) { // error
+    delete[] dirTable;
+    return -EINVALIDINODE;
+  }
+
+  bool targetInodeIsDir = (targetInode.type == UFS_DIRECTORY); // see if the targetInode is a directory or not
+  // error if targetInode is a directory, AND it is not empty
+  const int emptyDirSize = 2 * sizeof(dir_ent_t); // empty directory has '.' and '..'
+  if ((targetInodeIsDir) && (targetInode.size > emptyDirSize)) {
+    delete[] dirTable;
+    return -EDIRNOTEMPTY;
+  }
+
+  // if name exists in dirTable, delete from it, rebuild directory list and filter out the target
+  vector<dir_ent_t> newDirTableVec;
+  bool nameFoundInDirTable = false;
+  for (int i = 0; i < dirTableSize; i++) { // skip target to remove, keep rest
+    if (dirTable[i].name == name) { // found
+      nameFoundInDirTable = true; // flag and skip
+    } 
+    else {
+      newDirTableVec.push_back(dirTable[i]); // keep
+    }
+  }
+  delete[] dirTable;
+
+  // name was found
+  if (nameFoundInDirTable) {
+    dir_ent_t* newDirTable = new dir_ent_t[newDirTableVec.size()]; // create new dirTable with filtered vector
+    for (size_t i = 0; i < newDirTableVec.size(); i++) {
+      newDirTable[i] = newDirTableVec[i];
+    }
+
+    writeDataBlock(this, parentInodeNumber, newDirTable, newDirTableVec.size() * sizeof(dir_ent_t)); // overwrite directory
+    delete[] newDirTable;
+
+    // delete the inode, mark bit as free in inodebitmap and databitmap
+    unsigned char* inodeBitmap = new unsigned char[super.inode_bitmap_len * UFS_BLOCK_SIZE];
+    readInodeBitmap(&super, inodeBitmap);
+    setBitAvailable(targetInodeNumber, inodeBitmap);
+    writeInodeBitmap(&super, inodeBitmap);
+    delete[] inodeBitmap;
+
+    unsigned char* dataBitmap = new unsigned char[super.data_bitmap_len * UFS_BLOCK_SIZE];
+    readDataBitmap(&super, dataBitmap);
+    for (int i = 0; i < byteToBlocks(targetInode.size); i++) { 
+      setBitAvailable(targetInode.direct[i] - super.data_region_addr, dataBitmap);
+    }
+    writeDataBitmap(&super, dataBitmap);
+    delete[] dataBitmap;
+  }
   return 0;
 }
 
